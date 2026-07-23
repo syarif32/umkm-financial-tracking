@@ -7,17 +7,21 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Server-side guard: redirects to /login if there's no valid session.
-  // (middleware.ts already redirects unauthenticated requests, this is the
-  // defense-in-depth check at the layout/data-access level.)
   const { profile } = await requireUser();
 
   return (
-    <div className="flex min-h-svh">
+    // UBAH BARIS INI: Gunakan h-[100dvh] dan overflow-hidden
+    <div className="flex h-[100dvh] w-full overflow-hidden bg-zinc-50/50 relative">
       <Sidebar role={profile.role} />
-      <div className="flex min-w-0 flex-1 flex-col">
+      
+      {/* pb-16 untuk memberikan ruang navigasi mobile */}
+      <div className="flex min-w-0 flex-1 flex-col h-full pb-16 md:pb-0">
         <Header name={profile.full_name} role={profile.role} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        
+        {/* Hanya area ini yang bisa di-scroll */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          {children}
+        </main>
       </div>
     </div>
   );
