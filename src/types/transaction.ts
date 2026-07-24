@@ -23,6 +23,7 @@ export type TransactionListItem = Transaction & {
 
 export type TransactionItemWithMenuName = TransactionItem & {
   menu_name: string;
+  menu_image_url: string | null;
 };
 
 export type SaleItemInput = {
@@ -33,6 +34,7 @@ export type SaleItemInput = {
 export type CreateSaleTransactionInput = {
   payment_method_id: string;
   notes: string;
+  customer_phone: string;
   items: SaleItemInput[];
 };
 
@@ -52,4 +54,13 @@ export type VoidTransactionInput = {
 export type TransactionHistoryFilter = {
   type?: TransactionType;
   status?: TransactionStatus;
+  paymentMethodId?: string;
+  expenseCategoryId?: string;
+  /** Inclusive, 'YYYY-MM-DD'. */
+  fromDate?: string;
+  /** Inclusive, 'YYYY-MM-DD'. */
+  toDate?: string;
+  /** Matched client-side against transaction id (substring) and customer_phone. */
+  search?: string;
+  sortAscending?: boolean;
 };

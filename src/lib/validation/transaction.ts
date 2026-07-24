@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeIndonesianPhone } from "@/lib/phone";
 
 export const saleItemSchema = z.object({
   menu_id: z.string().uuid("ID menu tidak valid."),
@@ -9,9 +10,20 @@ export const saleItemSchema = z.object({
     .max(9999, "Kuantitas terlalu besar."),
 });
 
+export const customerPhoneSchema = z
+  .string()
+  .trim()
+  .max(20, "Nomor WhatsApp terlalu panjang.")
+  .optional()
+  .default("")
+  .refine((value) => value === "" || normalizeIndonesianPhone(value) !== null, {
+    message: "Nomor WhatsApp tidak valid.",
+  });
+
 export const createSaleTransactionSchema = z.object({
   payment_method_id: z.string().uuid("Metode pembayaran wajib dipilih."),
   notes: z.string().trim().max(500, "Catatan maksimal 500 karakter.").optional().default(""),
+  customer_phone: customerPhoneSchema,
   items: z
     .array(saleItemSchema)
     .min(1, "Transaksi harus memiliki minimal 1 item menu.")

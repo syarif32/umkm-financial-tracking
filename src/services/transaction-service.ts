@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Transaction } from "@/types/database";
+import type { Database, Transaction, TransactionItem } from "@/types/database";
 import type {
   CreateExpenseTransactionInput,
   CreateSaleTransactionInput,
@@ -11,6 +11,8 @@ import { transactionRepository } from "@/repositories/transaction-repository";
 import { menuService } from "@/services/menu-service";
 import { paymentMethodService } from "@/services/payment-method-service";
 import { expenseCategoryService } from "@/services/expense-category-service";
+import { normalizeIndonesianPhone } from "@/lib/phone";
+import { addDaysToDateOnly, startOfUtcDayIso } from "@/lib/date-range";
 
 type TypedSupabaseClient = SupabaseClient<Database>;
 
@@ -27,28 +29,90 @@ function buildMap<T extends Record<string, unknown>, K extends keyof T>(
 }
 
 /**
+ * Master-data lookups shared by both listTransactionHistory and
+ * getTransactionDetail, fetched once and reused so the two entry points
+ * don't duplicate the same joins.
+ */
+async function loadDisplayLookups(supabase: TypedSupabaseClient) {
+  const [menus, paymentMethods, categories, profiles] = await Promise.all([
+    menuService.list(supabase),
+    paymentMethodService.list(supabase),
+    expenseCategoryService.list(supabase),
+    supabase.from("profiles").select("id, full_name"),
+  ]);
+
+  if (profiles.error) throw new Error(profiles.error.message);
+
+  return {
+    menuNameMap: buildMap(menus, "id", "name") as Map<string, string>,
+    menuImageMap: buildMap(menus, "id", "image_url") as Map<string, string | null>,
+    paymentMethodNameMap: buildMap(paymentMethods, "id", "name") as Map<string, string>,
+    categoryNameMap: buildMap(categories, "id", "name") as Map<string, string>,
+    categoryTypeMap: buildMap(categories, "id", "type") as Map<
+      string,
+      TransactionListItem["expense_category_type"]
+    >,
+    profileNameMap: buildMap(profiles.data ?? [], "id", "full_name") as Map<string, string>,
+  };
+}
+
+type DisplayLookups = Awaited<ReturnType<typeof loadDisplayLookups>>;
+
+function mapToListItem(
+  t: Transaction,
+  items: TransactionItem[],
+  lookups: DisplayLookups
+): TransactionListItem {
+  return {
+    ...t,
+    payment_method_name: lookups.paymentMethodNameMap.get(t.payment_method_id) ?? "Tidak diketahui",
+    expense_category_name: t.expense_category_id
+      ? lookups.categoryNameMap.get(t.expense_category_id) ?? "Tidak diketahui"
+      : null,
+    expense_category_type: t.expense_category_id
+      ? lookups.categoryTypeMap.get(t.expense_category_id) ?? null
+      : null,
+    creator_name: lookups.profileNameMap.get(t.user_id) ?? "Tidak diketahui",
+    voided_by_name: t.voided_by ? lookups.profileNameMap.get(t.voided_by) ?? "Tidak diketahui" : null,
+    items: items
+      .filter((item) => item.transaction_id === t.id)
+      .map((item) => ({
+        ...item,
+        menu_name: lookups.menuNameMap.get(item.menu_id) ?? "Tidak diketahui",
+        menu_image_url: lookups.menuImageMap.get(item.menu_id) ?? null,
+      })),
+  };
+}
+
+/**
  * Business-logic layer for transactions. Authorization (who's allowed to
  * call these at all) is enforced one layer up, in the Server Actions —
  * this layer focuses on domain rules: which master data must be active,
- * what "void" means, and how history gets assembled for display.
+ * what "void" means, and how history/detail gets assembled for display.
  */
 export const transactionService = {
   /**
    * Creates a sale (INCOME) transaction. The actual price snapshotting and
    * total calculation happens inside the `create_sale_transaction` Postgres
-   * function (see migration 0003) — deliberately in the database, not here,
-   * so it's atomic and cannot be raced or bypassed by calling the repository
-   * with hand-crafted values. This function is a thin, intention-revealing
-   * pass-through.
+   * function (see migration 0003/0005) — deliberately in the database, not
+   * here, so it's atomic and cannot be raced or bypassed by calling the
+   * repository with hand-crafted values. This function is a thin,
+   * intention-revealing pass-through; the only logic here is normalizing
+   * the optional customer WhatsApp number before it's stored.
    */
   async createSaleTransaction(
     supabase: TypedSupabaseClient,
     input: CreateSaleTransactionInput
   ): Promise<Transaction> {
+    const normalizedPhone = input.customer_phone
+      ? normalizeIndonesianPhone(input.customer_phone)
+      : null;
+
     return transactionRepository.createSaleViaRpc(supabase, {
       payment_method_id: input.payment_method_id,
       notes: input.notes.trim() || null,
       items: input.items,
+      customer_phone: normalizedPhone,
     });
   },
 
@@ -107,10 +171,13 @@ export const transactionService = {
 
   /**
    * Assembles the transaction history view: Owner sees every transaction,
-   * Karyawan sees only their own. Related display data (payment method
-   * name, category, creator, menu names on line items) is joined here in
-   * TypeScript rather than via Supabase embedded-resource selects, so
-   * everything stays fully typed against our hand-written Database type.
+   * Karyawan sees only their own — enforced both here (onlyUserId) and by
+   * the `transactions_select` RLS policy independently. Date range, type,
+   * status, payment method, and expense category filters are all applied
+   * at the database query level (via the repository); free-text search
+   * (transaction ID substring / customer phone substring) is applied after
+   * fetching, since PostgREST doesn't support `ilike` across a uuid column
+   * and a text column in one OR'd condition — reasonable at this scale.
    */
   async listTransactionHistory(
     supabase: TypedSupabaseClient,
@@ -119,62 +186,55 @@ export const transactionService = {
   ): Promise<TransactionListItem[]> {
     const transactions = await transactionRepository.list(supabase, {
       onlyUserId: currentUser.isOwner ? undefined : currentUser.id,
+      type: filter.type,
+      status: filter.status,
+      paymentMethodId: filter.paymentMethodId,
+      expenseCategoryId: filter.expenseCategoryId,
+      fromDate: filter.fromDate ? startOfUtcDayIso(filter.fromDate) : undefined,
+      toDateExclusive: filter.toDate ? startOfUtcDayIso(addDaysToDateOnly(filter.toDate, 1)) : undefined,
+      ascending: filter.sortAscending,
     });
 
-    const filtered = transactions.filter((t) => {
-      if (filter.type && t.type !== filter.type) return false;
-      if (filter.status && t.status !== filter.status) return false;
-      return true;
-    });
+    const searchLower = filter.search?.trim().toLowerCase();
+    const searched = searchLower
+      ? transactions.filter(
+          (t) =>
+            t.id.toLowerCase().includes(searchLower) ||
+            (t.customer_phone ?? "").toLowerCase().includes(searchLower)
+        )
+      : transactions;
 
-    const incomeTransactionIds = filtered
-      .filter((t) => t.type === "INCOME")
-      .map((t) => t.id);
+    const incomeTransactionIds = searched.filter((t) => t.type === "INCOME").map((t) => t.id);
 
-    const [items, menus, paymentMethods, categories, profiles] = await Promise.all([
+    const [items, lookups] = await Promise.all([
       transactionRepository.listItemsByTransactionIds(supabase, incomeTransactionIds),
-      menuService.list(supabase),
-      paymentMethodService.list(supabase),
-      expenseCategoryService.list(supabase),
-      supabase.from("profiles").select("id, full_name"),
+      loadDisplayLookups(supabase),
     ]);
 
-    if (profiles.error) throw new Error(profiles.error.message);
+    return searched.map((t) => mapToListItem(t, items, lookups));
+  },
 
-    const menuNameMap = buildMap(menus, "id", "name") as Map<string, string>;
-    const paymentMethodNameMap = buildMap(paymentMethods, "id", "name") as Map<string, string>;
-    const categoryNameMap = buildMap(categories, "id", "name") as Map<string, string>;
-    const categoryTypeMap = buildMap(categories, "id", "type") as Map<
-      string,
-      TransactionListItem["expense_category_type"]
-    >;
-    const profileNameMap = buildMap(profiles.data ?? [], "id", "full_name") as Map<
-      string,
-      string
-    >;
+  /**
+   * Fetches a single transaction for the detail/receipt view. Returns null
+   * both when the transaction doesn't exist AND when RLS blocks it (a
+   * Karyawan requesting another user's transaction) — the caller can't tell
+   * the difference, which is the point: it avoids confirming to a Karyawan
+   * that some other transaction ID exists.
+   */
+  async getTransactionDetail(
+    supabase: TypedSupabaseClient,
+    id: string
+  ): Promise<TransactionListItem | null> {
+    const transaction = await transactionRepository.getById(supabase, id);
+    if (!transaction) return null;
 
-    const itemsByTransactionId = new Map<string, typeof items>();
-    for (const item of items) {
-      const bucket = itemsByTransactionId.get(item.transaction_id) ?? [];
-      bucket.push(item);
-      itemsByTransactionId.set(item.transaction_id, bucket);
-    }
+    const [items, lookups] = await Promise.all([
+      transaction.type === "INCOME"
+        ? transactionRepository.listItemsByTransactionIds(supabase, [transaction.id])
+        : Promise.resolve([]),
+      loadDisplayLookups(supabase),
+    ]);
 
-    return filtered.map((t): TransactionListItem => ({
-      ...t,
-      payment_method_name: paymentMethodNameMap.get(t.payment_method_id) ?? "Tidak diketahui",
-      expense_category_name: t.expense_category_id
-        ? categoryNameMap.get(t.expense_category_id) ?? "Tidak diketahui"
-        : null,
-      expense_category_type: t.expense_category_id
-        ? categoryTypeMap.get(t.expense_category_id) ?? null
-        : null,
-      creator_name: profileNameMap.get(t.user_id) ?? "Tidak diketahui",
-      voided_by_name: t.voided_by ? profileNameMap.get(t.voided_by) ?? "Tidak diketahui" : null,
-      items: (itemsByTransactionId.get(t.id) ?? []).map((item) => ({
-        ...item,
-        menu_name: menuNameMap.get(item.menu_id) ?? "Tidak diketahui",
-      })),
-    }));
+    return mapToListItem(transaction, items, lookups);
   },
 };

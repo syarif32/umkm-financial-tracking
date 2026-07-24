@@ -77,3 +77,25 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/*
+ * Receipt printing: isolate #receipt-print-area (see components/transactions
+ * /receipt.tsx) so "Print" only outputs the receipt itself, not the whole
+ * dashboard chrome (sidebar, header, buttons, etc).
+ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #receipt-print-area,
+  #receipt-print-area * {
+    visibility: visible;
+  }
+  #receipt-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: none;
+  }
+}

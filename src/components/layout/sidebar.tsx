@@ -2,34 +2,34 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  ListPlus,
-  Package,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { ClipboardList, LayoutDashboard, ListPlus, Package, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/database";
 
 interface NavItem {
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon: React.ComponentType<{ className?: string }>;
   roles: UserRole[];
 }
 
 const NAV_ITEMS: NavItem[] = [
   {
     href: "/dashboard",
-    label: "Beranda", // Disederhanakan dari Dashboard
+    label: "Dashboard",
     icon: LayoutDashboard,
     roles: ["OWNER", "KARYAWAN"],
   },
   {
     href: "/dashboard/transactions",
-    label: "Kasir", // Disederhanakan dari Transaksi untuk kejelasan aksi
+    label: "Transaksi",
     icon: ListPlus,
+    roles: ["OWNER", "KARYAWAN"],
+  },
+  {
+    href: "/dashboard/active-orders",
+    label: "Tagihan Aktif",
+    icon: ClipboardList,
     roles: ["OWNER", "KARYAWAN"],
   },
   {
@@ -53,13 +53,15 @@ export function Sidebar({ role }: { role: UserRole }) {
   return (
     <>
       {/* --- DESKTOP SIDEBAR --- */}
-      <aside className="hidden w-56 shrink-0 border-r bg-background md:flex md:flex-col">
-        <div className="px-6 py-6 border-b">
-          <span className="text-lg font-bold tracking-tight">Sistem UMKM</span>
+      <aside className="hidden w-56 shrink-0 border-r bg-white md:flex md:flex-col shadow-sm z-10">
+        <div className="px-6 py-5 border-b">
+          <span className="text-lg font-bold tracking-tight text-gray-800">Sistem UMKM</span>
         </div>
-        <nav className="flex flex-1 flex-col gap-2 px-3 py-4">
+        <nav className="flex flex-1 flex-col gap-2 px-3 py-4 overflow-y-auto">
           {items.map((item) => {
-            const isActive = pathname === item.href;
+            // Logika active state: exact match untuk dashboard, startsWith untuk sisanya
+            const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+            
             return (
               <Link
                 key={item.href}
@@ -67,11 +69,11 @@ export function Sidebar({ role }: { role: UserRole }) {
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
                   isActive
-                    ? "bg-primary/10 text-primary font-semibold"
-                    : "text-muted-foreground font-medium hover:bg-accent hover:text-accent-foreground"
+                    ? "bg-blue-50 text-blue-700 font-semibold"
+                    : "text-gray-500 font-medium hover:bg-gray-50 hover:text-gray-900"
                 )}
               >
-                <item.icon className={cn("h-5 w-5", isActive ? "text-primary" : "text-muted-foreground")} />
+                <item.icon className={cn("h-5 w-5", isActive ? "text-blue-700" : "text-gray-400")} />
                 {item.label}
               </Link>
             );
@@ -80,9 +82,14 @@ export function Sidebar({ role }: { role: UserRole }) {
       </aside>
 
       {/* --- MOBILE BOTTOM NAVIGATION --- */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-16 w-full items-center justify-around border-t bg-background pb-safe pt-1 shadow-[0_-4px_10px_rgba(0,0,0,0.03)] md:hidden">
+      <nav 
+        className="fixed bottom-0 left-0 right-0 z-[999] flex h-16 w-full items-center justify-around border-t bg-white pt-1 shadow-[0_-4px_15px_rgba(0,0,0,0.05)] md:hidden"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
         {items.map((item) => {
-          const isActive = pathname === item.href;
+          // Logika active state: exact match untuk dashboard, startsWith untuk sisanya
+          const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+          
           return (
             <Link
               key={item.href}
@@ -92,18 +99,18 @@ export function Sidebar({ role }: { role: UserRole }) {
               <div
                 className={cn(
                   "flex items-center justify-center rounded-full p-1.5 transition-colors",
-                  isActive ? "bg-primary/10" : "bg-transparent"
+                  isActive ? "bg-blue-50" : "bg-transparent"
                 )}
               >
                 <item.icon
-                  className={cn("h-5 w-5", isActive ? "text-primary" : "text-muted-foreground")}
+                  className={cn("h-5 w-5", isActive ? "text-blue-700" : "text-gray-400")}
                   strokeWidth={isActive ? 2.5 : 2}
                 />
               </div>
               <span
                 className={cn(
                   "text-[10px]",
-                  isActive ? "text-primary font-bold" : "text-muted-foreground font-medium"
+                  isActive ? "text-blue-700 font-bold" : "text-gray-500 font-medium"
                 )}
               >
                 {item.label}

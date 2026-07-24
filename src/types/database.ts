@@ -67,6 +67,7 @@ export type Transaction = {
   total_amount: number;
   notes: string | null;
   transaction_date: string;
+  customer_phone: string | null;
   voided_at: string | null;
   voided_by: string | null;
   void_reason: string | null;
@@ -85,6 +86,38 @@ export type TransactionItem = {
 };
 
 export type SaleItemArg = {
+  menu_id: string;
+  quantity: number;
+};
+
+export type ActiveOrderStatus = "OPEN" | "PAID" | "CANCELLED";
+
+export type ActiveOrder = {
+  id: string;
+  order_number: string;
+  status: ActiveOrderStatus;
+  created_by: string;
+  notes: string | null;
+  customer_name: string | null;
+  total_amount: number;
+  transaction_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ActiveOrderItem = {
+  id: string;
+  active_order_id: string;
+  menu_id: string;
+  menu_name_snapshot: string;
+  price_snapshot: number;
+  quantity: number;
+  subtotal: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ActiveOrderItemArg = {
   menu_id: string;
   quantity: number;
 };
@@ -212,6 +245,7 @@ export type Database = {
           total_amount: number;
           notes?: string | null;
           transaction_date?: string;
+          customer_phone?: string | null;
           voided_at?: string | null;
           voided_by?: string | null;
           void_reason?: string | null;
@@ -228,6 +262,7 @@ export type Database = {
           total_amount?: number;
           notes?: string | null;
           transaction_date?: string;
+          customer_phone?: string | null;
           voided_at?: string | null;
           voided_by?: string | null;
           void_reason?: string | null;
@@ -258,6 +293,58 @@ export type Database = {
         };
         Relationships: [];
       };
+      active_orders: {
+        Row: ActiveOrder;
+        Insert: {
+          id?: string;
+          order_number?: string;
+          status?: ActiveOrderStatus;
+          created_by: string;
+          notes?: string | null;
+          total_amount?: number;
+          transaction_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          order_number?: string;
+          status?: ActiveOrderStatus;
+          created_by?: string;
+          notes?: string | null;
+          total_amount?: number;
+          transaction_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      active_order_items: {
+        Row: ActiveOrderItem;
+        Insert: {
+          id?: string;
+          active_order_id: string;
+          menu_id: string;
+          menu_name_snapshot: string;
+          price_snapshot: number;
+          quantity: number;
+          subtotal: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          active_order_id?: string;
+          menu_id?: string;
+          menu_name_snapshot?: string;
+          price_snapshot?: number;
+          quantity?: number;
+          subtotal?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -266,6 +353,23 @@ export type Database = {
           p_payment_method_id: string;
           p_notes: string | null;
           p_items: SaleItemArg[];
+          p_customer_phone: string | null;
+        };
+        Returns: Transaction;
+      };
+      create_active_order: {
+        Args: {
+          p_notes: string | null;
+          p_items: ActiveOrderItemArg[];
+        };
+        Returns: ActiveOrder;
+      };
+      checkout_active_order: {
+        Args: {
+          p_active_order_id: string;
+          p_payment_method_id: string;
+          p_notes: string | null;
+          p_customer_phone: string | null;
         };
         Returns: Transaction;
       };

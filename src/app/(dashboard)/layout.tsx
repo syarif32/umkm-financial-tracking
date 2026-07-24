@@ -7,18 +7,19 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Server-side guard
   const { profile } = await requireUser();
 
   return (
-    // UBAH BARIS INI: Gunakan h-[100dvh] dan overflow-hidden
+    // KUNCI 1: Gunakan h-[100dvh] dan overflow-hidden untuk mengunci ukuran layar HP
     <div className="flex h-[100dvh] w-full overflow-hidden bg-zinc-50/50 relative">
       <Sidebar role={profile.role} />
       
-      {/* pb-16 untuk memberikan ruang navigasi mobile */}
-      <div className="flex min-w-0 flex-1 flex-col h-full pb-16 md:pb-0">
+      {/* KUNCI 2: pb-20 di mode mobile memberi ruang 80px di bawah agar konten tidak tertutup nav */}
+      <div className="flex min-w-0 flex-1 flex-col h-full pb-20 md:pb-0 relative">
         <Header name={profile.full_name} role={profile.role} />
         
-        {/* Hanya area ini yang bisa di-scroll */}
+        {/* Hanya area ini yang bisa di-scroll, badan website akan tetap diam */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           {children}
         </main>

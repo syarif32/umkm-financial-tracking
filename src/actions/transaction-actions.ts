@@ -28,6 +28,7 @@ function firstFieldError(error: { issues: { message: string }[] }): string {
 export async function createSaleTransactionAction(input: {
   payment_method_id: string;
   notes: string;
+  customer_phone: string;
   items: { menu_id: string; quantity: number }[];
 }): Promise<ActionResult> {
   await requireUser();

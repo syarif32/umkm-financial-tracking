@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth/rbac";
 import { createClient } from "@/lib/supabase/server";
 import { dashboardService } from "@/services/dashboard-service";
 import { isoDateOnly } from "@/lib/date-range";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateRangeFilterForm } from "@/components/dashboard/date-range-filter-form";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { DailyIncomeChart } from "@/components/dashboard/daily-income-chart";
@@ -29,20 +30,22 @@ export default async function DashboardPage({
   const params = await searchParams;
 
   if (profile.role !== "OWNER") {
-    // Tampilan khusus KARYAWAN: Hangat, bersih, dan langsung ke intinya
+    // Financial reporting is Owner-only (see Step 1 RBAC design) — Karyawan
+    // gets a simple shift-focused landing instead. This branch never calls
+    // dashboardService, so the aggregation queries never run for Karyawan;
+    // RLS on transactions/transaction_items would additionally cap them to
+    // their own rows even if it somehow did.
     return (
       <div className="flex flex-col gap-4">
-        <div className="bg-blue-600 text-white p-6 rounded-2xl shadow-sm">
-          <h1 className="text-2xl font-bold">Halo, {profile.full_name}! 👋</h1>
-          <p className="text-blue-100 mt-1 text-sm">Selamat bekerja di shift Anda hari ini.</p>
-        </div>
-        
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-          <h2 className="font-semibold text-gray-800 mb-2">Ringkasan Shift</h2>
-          <p className="text-sm text-gray-500 leading-relaxed">
-            Gunakan menu <strong className="text-gray-700">Kasir</strong> di bawah untuk mulai mencatat pesanan pelanggan atau mencatat pengeluaran warung selama shift Anda.
-          </p>
-        </div>
+        <h1 className="text-xl font-semibold">Halo, {profile.full_name}</h1>
+        <Card>
+          <CardHeader>
+            <CardTitle>Ringkasan Shift</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Gunakan menu Transaksi untuk mencatat penjualan dan pengeluaran selama shift Anda.
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -52,7 +55,7 @@ export default async function DashboardPage({
     from: isValidDateOnly(params.from) ? params.from : fallback.from,
     to: isValidDateOnly(params.to) ? params.to : fallback.to,
   };
-  
+  // Guard against an inverted range (e.g. a hand-edited URL).
   if (range.from > range.to) {
     [range.from, range.to] = [range.to, range.from];
   }
@@ -60,23 +63,19 @@ export default async function DashboardPage({
   const supabase = await createClient();
   const data = await dashboardService.getFinancialDashboard(supabase, range);
 
-  // Tampilan khusus OWNER
   return (
-    <div className="flex flex-col gap-8 pb-4">
-      {/* Header Dashboard & Filter */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-800">Dashboard Keuangan</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Pantau performa bisnis dan arus kas Anda.
+          <h1 className="text-xl font-semibold">Dashboard Keuangan</h1>
+          <p className="text-sm text-muted-foreground">
+            Ringkasan performa bisnis. Kartu &quot;Hari Ini&quot; dan &quot;Bulan Ini&quot; selalu
+            mengikuti tanggal saat ini; bagian lain mengikuti rentang tanggal yang dipilih.
           </p>
         </div>
-        <div className="w-full sm:w-auto">
-          <DateRangeFilterForm from={range.from} to={range.to} />
-        </div>
+        <DateRangeFilterForm from={range.from} to={range.to} />
       </div>
 
-      {/* Metrik Utama */}
       <KpiCards
         todayIncome={data.todayIncome}
         currentMonthIncome={data.currentMonthIncome}
@@ -85,28 +84,16 @@ export default async function DashboardPage({
         netBalanceInRange={data.netBalanceInRange}
       />
 
-      {/* Bagian Grafik (Diberikan padding dan border agar menyatu dengan gaya baru) */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="bg-white p-2 rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <DailyIncomeChart data={data.dailyIncomeTrend} />
-        </div>
-        <div className="bg-white p-2 rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <MonthlyIncomeChart data={data.monthlyIncomeTrend} />
-        </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <DailyIncomeChart data={data.dailyIncomeTrend} />
+        <MonthlyIncomeChart data={data.monthlyIncomeTrend} />
       </div>
 
-      {/* Breakdown Data */}
-      <div className="grid grid-cols-1 gap-6">
-        <div className="bg-white p-2 rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <CategoryBreakdown data={data.categoryBreakdown} />
-        </div>
-        <div className="bg-white p-2 rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <ExpenseBreakdown data={data.expenseBreakdown} />
-        </div>
-        <div className="bg-white p-2 rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <PaymentMethodBalances balances={data.paymentMethodBalances} />
-        </div>
-      </div>
+      <CategoryBreakdown data={data.categoryBreakdown} />
+
+      <ExpenseBreakdown data={data.expenseBreakdown} />
+
+      <PaymentMethodBalances balances={data.paymentMethodBalances} />
     </div>
   );
 }

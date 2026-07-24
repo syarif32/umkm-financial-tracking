@@ -2,8 +2,19 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, Minus, Plus, ShoppingBag, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { 
+  ArrowLeft, 
+  CheckCircle2, 
+  ImageOff, 
+  Loader2, 
+  Minus, 
+  Plus, 
+  ShoppingBag, 
+  User, 
+  Phone 
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createSaleTransactionAction } from "@/actions/transaction-actions";
@@ -23,18 +34,18 @@ export function SaleForm({
   menus: Menu[];
   paymentMethods: PaymentMethod[];
 }) {
-  // State tetap menggunakan format orisinal Anda untuk menjaga kompatibilitas logika
+  // State untuk navigasi antar layar POS
+  const [step, setStep] = useState<"menu" | "checkout">("menu");
+  
   const [rows, setRows] = useState<ItemRow[]>([]);
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [notes, setNotes] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [isPending, startTransition] = useTransition();
-
-  // Tambahan state UI untuk memisahkan pemilihan menu dan proses bayar
-  const [step, setStep] = useState<"menu" | "checkout">("menu");
 
   const menuById = useMemo(() => new Map(menus.map((m) => [m.id, m])), [menus]);
 
-  // Kalkulasi total
   const estimatedTotal = rows.reduce((sum, row) => {
     const menu = menuById.get(row.menuId);
     if (!menu) return sum;
@@ -43,7 +54,7 @@ export function SaleForm({
 
   const totalItems = rows.reduce((sum, row) => sum + row.quantity, 0);
 
-  // Logic memanipulasi baris saat menu ditekan
+  // Fungsi khusus untuk Mode Visual Grid
   function handleAddMenu(menuId: string) {
     const existingRow = rows.find((r) => r.menuId === menuId);
     if (existingRow) {
@@ -83,6 +94,8 @@ export function SaleForm({
     setRows([]);
     setPaymentMethodId("");
     setNotes("");
+    setCustomerName("");
+    setCustomerPhone("");
     setStep("menu");
   }
 
@@ -90,7 +103,7 @@ export function SaleForm({
     e.preventDefault();
 
     if (!paymentMethodId) {
-      toast.error("Pilih metode pembayaran terlebih dahulu.");
+      toast.error("Metode pembayaran wajib dipilih.");
       return;
     }
 
@@ -104,14 +117,20 @@ export function SaleForm({
     }
 
     startTransition(async () => {
+      // Pastikan createSaleTransactionAction di actions Anda 
+      // sudah siap menerima field customer_name
       const result = await createSaleTransactionAction({
         payment_method_id: paymentMethodId,
         notes,
+        customer_name: customerName, 
+        customer_phone: customerPhone,
         items,
       });
 
       if (result.success) {
         toast.success(result.message);
+        // Jika Anda memiliki trigger untuk menampilkan Struk atau WA,
+        // Anda bisa menyisipkan logikanya di sini sebelum reset.
         resetForm();
       } else {
         toast.error(result.message);
@@ -119,17 +138,19 @@ export function SaleForm({
     });
   }
 
-  // --- TAMPILAN 1: PILIH MENU ---
+  // ==========================================
+  // TAMPILAN 1: MODE PILIH MENU (VISUAL GRID)
+  // ==========================================
   if (step === "menu") {
     return (
-      <div className="flex flex-col relative bg-white rounded-2xl border shadow-sm overflow-hidden">
-        <div className="p-4 border-b bg-gray-50/50">
-          <h2 className="text-lg font-bold text-gray-800">Kasir Penjualan</h2>
-          <p className="text-xs text-muted-foreground">Ketuk menu untuk menambahkan ke pesanan.</p>
+      <div className="flex flex-col h-full bg-gray-50/50 rounded-2xl border shadow-sm overflow-hidden relative">
+        <div className="p-4 border-b bg-white">
+          <h2 className="text-lg font-bold text-gray-800">Kasir</h2>
+          <p className="text-xs text-muted-foreground mt-1">Ketuk menu untuk menambahkan ke keranjang.</p>
         </div>
 
-        {/* Grid Menu */}
-        <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        {/* Grid Menu yang ramah jempol */}
+        <div className="p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 overflow-y-auto pb-24">
           {menus.map((menu) => {
             const qty = getMenuQuantity(menu.id);
             const isSelected = qty > 0;
@@ -141,42 +162,47 @@ export function SaleForm({
                   if (!isSelected) handleAddMenu(menu.id);
                 }}
                 className={cn(
-                  "relative flex flex-col justify-between p-3 rounded-xl border-2 transition-all cursor-pointer select-none h-28",
+                  "relative flex flex-col bg-white rounded-xl border-2 transition-all cursor-pointer overflow-hidden select-none",
                   isSelected
-                    ? "border-blue-500 bg-blue-50/30"
-                    : "border-gray-100 bg-white hover:border-gray-200"
+                    ? "border-blue-500 shadow-md ring-2 ring-blue-500/20"
+                    : "border-gray-100 hover:border-blue-200"
                 )}
               >
-                <div>
-                  <p className="font-semibold text-sm leading-tight line-clamp-2 text-gray-800">
+                {/* Area Gambar */}
+                <div className="w-full h-24 bg-gray-100 flex items-center justify-center shrink-0">
+                  {menu.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={menu.image_url} alt={menu.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <ImageOff className="w-6 h-6 text-gray-300" />
+                  )}
+                </div>
+
+                {/* Info Menu */}
+                <div className="p-2.5 flex flex-col flex-1">
+                  <p className="font-semibold text-[13px] leading-tight text-gray-800 line-clamp-2">
                     {menu.name}
                   </p>
-                  <p className="text-xs font-medium text-blue-600 mt-1">
+                  <p className="text-xs font-bold text-blue-600 mt-auto pt-1">
                     {formatRupiah(menu.current_price)}
                   </p>
                 </div>
 
-                {/* Kontrol Jumlah (Tampil hanya jika menu dipilih) */}
+                {/* Kontrol Qty Tampil Melayang jika Dipilih */}
                 {isSelected && (
-                  <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between bg-white border shadow-sm rounded-lg p-1">
+                  <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t p-1.5 flex items-center justify-between">
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDecreaseMenu(menu.id);
-                      }}
-                      className="w-8 h-8 flex items-center justify-center bg-gray-50 rounded text-gray-600 active:bg-gray-200"
+                      onClick={(e) => { e.stopPropagation(); handleDecreaseMenu(menu.id); }}
+                      className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-gray-700 active:bg-gray-200"
                     >
                       <Minus className="w-4 h-4" />
                     </button>
                     <span className="font-bold text-sm">{qty}</span>
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAddMenu(menu.id);
-                      }}
-                      className="w-8 h-8 flex items-center justify-center bg-blue-500 rounded text-white active:bg-blue-600"
+                      onClick={(e) => { e.stopPropagation(); handleAddMenu(menu.id); }}
+                      className="w-8 h-8 flex items-center justify-center bg-blue-600 rounded-lg text-white active:bg-blue-700"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
@@ -187,20 +213,20 @@ export function SaleForm({
           })}
         </div>
 
-        {/* Sticky Footer Cart */}
+        {/* Sticky Checkout Footer (Melayang di bawah) */}
         {totalItems > 0 && (
-          <div className="sticky bottom-0 border-t bg-white p-4 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.1)] flex items-center justify-between z-10">
+          <div className="absolute bottom-0 left-0 right-0 bg-white border-t p-4 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.1)] flex items-center justify-between z-10">
             <div className="flex flex-col">
-              <span className="text-xs text-muted-foreground font-medium">{totalItems} Item Terpilih</span>
-              <span className="text-lg font-bold text-gray-900">{formatRupiah(estimatedTotal)}</span>
+              <span className="text-xs text-muted-foreground font-medium">{totalItems} Item</span>
+              <span className="text-xl font-bold text-gray-900 leading-none mt-0.5">{formatRupiah(estimatedTotal)}</span>
             </div>
             <Button 
               size="lg" 
-              className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700 shadow-md"
+              className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700 text-md font-semibold h-12"
               onClick={() => setStep("checkout")}
             >
               <ShoppingBag className="w-5 h-5 mr-2" />
-              Lanjut Pembayaran
+              Bayar
             </Button>
           </div>
         )}
@@ -208,54 +234,96 @@ export function SaleForm({
     );
   }
 
-  // --- TAMPILAN 2: CHECKOUT & PEMBAYARAN ---
+  // ==========================================
+  // TAMPILAN 2: MODE PEMBAYARAN & INFO CUSTOMER
+  // ==========================================
   return (
     <div className="flex flex-col bg-white rounded-2xl border shadow-sm">
       <div className="p-4 border-b flex items-center gap-3 bg-gray-50/50 rounded-t-2xl">
-        <Button variant="ghost" size="icon" onClick={() => setStep("menu")} className="rounded-full">
+        <Button variant="ghost" size="icon" onClick={() => setStep("menu")} className="rounded-full shrink-0">
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div>
           <h2 className="text-lg font-bold text-gray-800">Selesaikan Pembayaran</h2>
-          <p className="text-xs text-muted-foreground">Pilih metode pembayaran</p>
+          <p className="text-xs text-muted-foreground">Lengkapi data pelanggan dan metode bayar.</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col p-4 gap-6">
-        {/* Ringkasan Pesanan (Read Only) */}
+        
+        {/* Ringkasan Belanja */}
         <div className="bg-gray-50 rounded-xl p-4 border">
-          <p className="text-sm font-semibold mb-3 text-gray-700">Ringkasan Pesanan</p>
-          <div className="flex flex-col gap-2 mb-3 max-h-40 overflow-y-auto pr-2">
+          <div className="flex flex-col gap-2 mb-3 max-h-40 overflow-y-auto pr-2 no-scrollbar">
             {rows.map((row) => {
               const menu = menuById.get(row.menuId);
               if (!menu) return null;
               return (
                 <div key={row.key} className="flex justify-between text-sm items-start">
-                  <span className="text-gray-600">{row.quantity}x {menu.name}</span>
-                  <span className="font-medium">{formatRupiah(menu.current_price * row.quantity)}</span>
+                  <span className="text-gray-600 font-medium">{row.quantity}x {menu.name}</span>
+                  <span className="font-semibold text-gray-800">{formatRupiah(menu.current_price * row.quantity)}</span>
                 </div>
               );
             })}
           </div>
-          <div className="border-t pt-3 flex justify-between items-center mt-1">
-            <span className="font-semibold text-gray-800">Total Tagihan</span>
+          <div className="border-t pt-3 flex justify-between items-center">
+            <span className="font-semibold text-gray-600">Total Tagihan</span>
             <span className="text-xl font-bold text-blue-600">{formatRupiah(estimatedTotal)}</span>
           </div>
         </div>
 
-        {/* Pilihan Metode Pembayaran (Visual Grid, bukan dropdown) */}
+        {/* Data Pelanggan */}
+        <div className="flex flex-col gap-4 bg-white p-4 rounded-xl border">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="customer-name" className="text-sm font-semibold flex items-center gap-2">
+              <User className="w-4 h-4 text-gray-400" />
+              Nama Pelanggan (Opsional)
+            </Label>
+            <Input
+              id="customer-name"
+              type="text"
+              placeholder="Contoh: Budi"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              disabled={isPending}
+              className="h-12 rounded-xl"
+              maxLength={50}
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="customer-phone" className="text-sm font-semibold flex items-center gap-2">
+              <Phone className="w-4 h-4 text-gray-400" />
+              Nomor WA (Opsional)
+            </Label>
+            <Input
+              id="customer-phone"
+              type="tel"
+              placeholder="Contoh: 0812xxxxxxx"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+              disabled={isPending}
+              className="h-12 rounded-xl"
+              maxLength={20}
+            />
+            <p className="text-[11px] text-muted-foreground leading-tight">
+              Isi jika ingin membagikan struk digital via WhatsApp setelah transaksi.
+            </p>
+          </div>
+        </div>
+
+        {/* Metode Pembayaran (Visual Buttons) */}
         <div className="flex flex-col gap-3">
           <Label className="text-sm font-semibold text-gray-800">Metode Pembayaran</Label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {paymentMethods.map((pm) => (
               <div
                 key={pm.id}
                 onClick={() => setPaymentMethodId(pm.id)}
                 className={cn(
-                  "flex items-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all",
+                  "flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all select-none",
                   paymentMethodId === pm.id
                     ? "border-blue-500 bg-blue-50 text-blue-700"
-                    : "border-gray-200 hover:border-blue-300 text-gray-700"
+                    : "border-gray-200 hover:border-blue-200 text-gray-700"
                 )}
               >
                 <div className={cn(
@@ -264,39 +332,38 @@ export function SaleForm({
                 )}>
                   {paymentMethodId === pm.id && <CheckCircle2 className="w-4 h-4 fill-blue-500 text-white" />}
                 </div>
-                <span className="font-medium text-sm">{pm.name}</span>
+                <span className="font-semibold text-sm">{pm.name}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Catatan Tambahan */}
+        {/* Catatan */}
         <div className="flex flex-col gap-2">
-          <Label htmlFor="sale-notes" className="text-sm font-semibold text-gray-800">Catatan (Opsional)</Label>
+          <Label htmlFor="sale-notes" className="text-sm font-semibold text-gray-800">Catatan Pesanan (Opsional)</Label>
           <Textarea
             id="sale-notes"
-            placeholder="Contoh: Pedas, dibungkus, dll."
+            placeholder="Contoh: Pedas, dibungkus..."
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             disabled={isPending}
             maxLength={500}
-            className="rounded-xl resize-none h-20"
+            className="rounded-xl resize-none min-h-[80px]"
           />
         </div>
 
-        {/* Tombol Simpan Final */}
         <Button 
           type="submit" 
           disabled={isPending || !paymentMethodId} 
           size="lg"
-          className="w-full rounded-xl text-md h-14 bg-green-600 hover:bg-green-700 font-bold mt-2 shadow-lg"
+          className="w-full rounded-xl text-md h-14 bg-emerald-600 hover:bg-emerald-700 font-bold shadow-lg mt-2"
         >
           {isPending ? (
             <Loader2 className="animate-spin mr-2 w-5 h-5" />
           ) : (
             <CheckCircle2 className="mr-2 w-5 h-5" />
           )}
-          {isPending ? "Menyimpan..." : "Simpan Transaksi"}
+          {isPending ? "Memproses..." : "Simpan Transaksi"}
         </Button>
       </form>
     </div>

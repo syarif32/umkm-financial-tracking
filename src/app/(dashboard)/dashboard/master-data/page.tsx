@@ -11,6 +11,9 @@ import { PaymentMethodSection } from "@/components/master-data/payment-method-se
 import { ExpenseCategorySection } from "@/components/master-data/expense-category-section";
 
 export default async function MasterDataPage() {
+  // Server-side guard: even if a Karyawan navigates here directly (the nav
+  // link is hidden for them, but hidden UI is not a security boundary),
+  // this redirects them to /dashboard before any data is fetched.
   await requireOwner();
 
   const supabase = await createClient();
@@ -23,37 +26,34 @@ export default async function MasterDataPage() {
   ]);
 
   return (
-    <div className="flex flex-col gap-6 pb-4">
-      <div className="bg-white p-5 rounded-2xl border shadow-sm">
-        <h1 className="text-xl font-bold text-gray-800">Data Master</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-xl font-semibold">Data Master</h1>
+        <p className="text-sm text-muted-foreground">
           Kelola menu, kategori menu, metode pembayaran, dan kategori pengeluaran.
         </p>
       </div>
 
-      <Tabs defaultValue="menus" className="flex flex-col flex-1">
-        {/* Modifikasi TabsList agar ramah jempol dan bisa di-scroll horizontal di HP */}
-        <TabsList className="w-full justify-start overflow-x-auto flex-nowrap rounded-xl bg-white border p-1 h-auto no-scrollbar">
-          <TabsTrigger value="menus" className="py-2.5 px-4 rounded-lg text-sm whitespace-nowrap">Menu</TabsTrigger>
-          <TabsTrigger value="menu-categories" className="py-2.5 px-4 rounded-lg text-sm whitespace-nowrap">Kategori Menu</TabsTrigger>
-          <TabsTrigger value="payment-methods" className="py-2.5 px-4 rounded-lg text-sm whitespace-nowrap">Metode Pembayaran</TabsTrigger>
-          <TabsTrigger value="expense-categories" className="py-2.5 px-4 rounded-lg text-sm whitespace-nowrap">Kategori Pengeluaran</TabsTrigger>
+      <Tabs defaultValue="menus">
+        <TabsList>
+          <TabsTrigger value="menus">Menu</TabsTrigger>
+          <TabsTrigger value="menu-categories">Kategori Menu</TabsTrigger>
+          <TabsTrigger value="payment-methods">Metode Pembayaran</TabsTrigger>
+          <TabsTrigger value="expense-categories">Kategori Pengeluaran</TabsTrigger>
         </TabsList>
 
-        <div className="mt-4">
-          <TabsContent value="menus" className="m-0">
-            <MenuSection menus={menus} categories={menuCategories} />
-          </TabsContent>
-          <TabsContent value="menu-categories" className="m-0">
-            <MenuCategorySection categories={menuCategories} />
-          </TabsContent>
-          <TabsContent value="payment-methods" className="m-0">
-            <PaymentMethodSection paymentMethods={paymentMethods} />
-          </TabsContent>
-          <TabsContent value="expense-categories" className="m-0">
-            <ExpenseCategorySection categories={expenseCategories} />
-          </TabsContent>
-        </div>
+        <TabsContent value="menus">
+          <MenuSection menus={menus} categories={menuCategories} />
+        </TabsContent>
+        <TabsContent value="menu-categories">
+          <MenuCategorySection categories={menuCategories} />
+        </TabsContent>
+        <TabsContent value="payment-methods">
+          <PaymentMethodSection paymentMethods={paymentMethods} />
+        </TabsContent>
+        <TabsContent value="expense-categories">
+          <ExpenseCategorySection categories={expenseCategories} />
+        </TabsContent>
       </Tabs>
     </div>
   );

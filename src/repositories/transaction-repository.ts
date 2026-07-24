@@ -11,6 +11,7 @@ export interface CreateSaleViaRpcInput {
   payment_method_id: string;
   notes: string | null;
   items: { menu_id: string; quantity: number }[];
+  customer_phone: string | null;
 }
 
 export interface CreateExpenseRow {
@@ -33,6 +34,10 @@ export interface ListTransactionsOptions {
   fromDate?: string;
   /** Exclusive upper bound on transaction_date (ISO string). */
   toDateExclusive?: string;
+  paymentMethodId?: string;
+  expenseCategoryId?: string;
+  /** Sort by transaction_date. Defaults to newest-first (false). */
+  ascending?: boolean;
 }
 
 /**
@@ -55,6 +60,7 @@ export const transactionRepository = {
       p_payment_method_id: input.payment_method_id,
       p_notes: input.notes,
       p_items: input.items,
+      p_customer_phone: input.customer_phone,
     });
 
     if (error) throw new Error(error.message);
@@ -92,7 +98,7 @@ export const transactionRepository = {
     let query = supabase
       .from("transactions")
       .select("*")
-      .order("transaction_date", { ascending: false });
+      .order("transaction_date", { ascending: options.ascending ?? false });
 
     if (options.onlyUserId) {
       query = query.eq("user_id", options.onlyUserId);
@@ -108,6 +114,12 @@ export const transactionRepository = {
     }
     if (options.toDateExclusive) {
       query = query.lt("transaction_date", options.toDateExclusive);
+    }
+    if (options.paymentMethodId) {
+      query = query.eq("payment_method_id", options.paymentMethodId);
+    }
+    if (options.expenseCategoryId) {
+      query = query.eq("expense_category_id", options.expenseCategoryId);
     }
 
     const { data, error } = await query;
