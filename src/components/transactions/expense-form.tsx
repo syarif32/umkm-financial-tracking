@@ -72,6 +72,8 @@ export function ExpenseForm({
         amount: Number(amount),
         notes,
         transaction_date: transactionDate,
+         customer_name: "",
+          customer_phone: "",
       });
 
       if (result.success) {

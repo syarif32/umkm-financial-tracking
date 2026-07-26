@@ -29,6 +29,7 @@ export async function createSaleTransactionAction(input: {
   payment_method_id: string;
   notes: string;
   customer_phone: string;
+  customer_name?: string | null;
   items: { menu_id: string; quantity: number }[];
 }): Promise<ActionResult> {
   await requireUser();
@@ -76,7 +77,11 @@ export async function createExpenseTransactionAction(input: {
 
   try {
     const supabase = await createClient();
-    await transactionService.createExpenseTransaction(supabase, currentUser.id, parsed.data);
+    await transactionService.createExpenseTransaction(supabase, currentUser.id, {
+  ...parsed.data,
+  customer_name: null,
+  customer_phone: null,
+});
   } catch (err) {
     return {
       success: false,

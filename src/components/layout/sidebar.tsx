@@ -9,7 +9,7 @@ import type { UserRole } from "@/types/database";
 interface NavItem {
   href: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   roles: UserRole[];
 }
 

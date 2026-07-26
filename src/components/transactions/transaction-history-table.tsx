@@ -35,10 +35,14 @@ export function TransactionHistoryTable({
   transactions,
   isOwner,
   emptyMessage = "Belum ada transaksi.",
+  currentPage, // <-- Ditambahkan agar TS tidak error
+  totalPages,  // <-- Ditambahkan agar TS tidak error
 }: {
   transactions: TransactionListItem[];
   isOwner: boolean;
   emptyMessage?: string;
+  currentPage?: number; // <-- Tipe data ditambahkan
+  totalPages?: number;  // <-- Tipe data ditambahkan
 }) {
   return (
     <div className="rounded-lg border">

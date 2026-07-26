@@ -72,7 +72,12 @@ export function ActiveOrderForm({
   function handleSavePesanan() {
     const items = collectItems();
     startSaving(async () => {
-      const result = await createActiveOrderAction({ notes, items });
+      const result = await createActiveOrderAction({ 
+  notes, 
+  items,
+  customer_name: "",  
+  customer_phone: ""  
+});
       if (result.success && result.activeOrderId) {
         toast.success(result.message);
         router.push(`/dashboard/active-orders/${result.activeOrderId}`);

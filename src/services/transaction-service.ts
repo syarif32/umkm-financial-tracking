@@ -81,6 +81,8 @@ function mapToListItem(
 ): TransactionListItem {
   return {
     ...t,
+    customer_name: (t as any).customer_name ?? null,
+    customer_phone: (t as any).customer_phone ?? null,
     payment_method_name: lookups.paymentMethodNameMap.get(t.payment_method_id) ?? "Tidak diketahui",
     expense_category_name: t.expense_category_id
       ? lookups.categoryNameMap.get(t.expense_category_id) ?? "Tidak diketahui"

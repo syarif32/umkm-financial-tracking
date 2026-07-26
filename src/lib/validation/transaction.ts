@@ -46,6 +46,9 @@ export const createExpenseTransactionSchema = z.object({
     .max(999_999_999, "Jumlah terlalu besar."),
   notes: z.string().trim().max(500, "Catatan maksimal 500 karakter.").optional().default(""),
   transaction_date: z.coerce.date({ message: "Tanggal tidak valid." }).optional(),
+  // Ditambahkan agar sinkron dengan tipe data Pengeluaran
+  customer_name: z.string().optional().nullable(),
+  customer_phone: z.string().optional().nullable(),
 });
 
 export const voidTransactionSchema = z.object({

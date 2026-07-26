@@ -18,6 +18,8 @@ export type TransactionListItem = Transaction & {
   expense_category_type: ExpenseCategoryType | null;
   creator_name: string;
   voided_by_name: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
   items: TransactionItemWithMenuName[];
 };
 
@@ -35,6 +37,7 @@ export type CreateSaleTransactionInput = {
   payment_method_id: string;
   notes: string;
   customer_phone: string;
+  customer_name: string | null;
   items: SaleItemInput[];
 };
 
@@ -44,6 +47,8 @@ export type CreateExpenseTransactionInput = {
   amount: number;
   notes: string;
   transaction_date?: Date;
+  customer_name: string | null;
+  customer_phone: string | null;
 };
 
 export type VoidTransactionInput = {

@@ -121,7 +121,7 @@ export function SaleForm({
         const result = await createSaleTransactionAction({
           payment_method_id: paymentMethodId,
           notes,
-          customer_name: customerName, 
+          customer_name: customerName,  
           customer_phone: customerPhone,
           items,
         });
@@ -137,6 +137,7 @@ export function SaleForm({
         const result = await createActiveOrderAction({
           notes,
           customer_name: customerName,
+          customer_phone: customerPhone,  
           items,
         });
 
