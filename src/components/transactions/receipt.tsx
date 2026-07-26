@@ -1,4 +1,3 @@
-
 "use client";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -58,6 +57,13 @@ export function Receipt({ transaction }: { transaction: TransactionListItem }) {
           <span className="text-neutral-500">Kasir</span>
           <span className="text-right">{transaction.creator_name}</span>
         </div>
+        {/* TAMBAHAN: Nama Pelanggan di Struk UI */}
+        {transaction.customer_name && (
+          <div className="flex justify-between gap-2 mt-1">
+            <span className="text-neutral-500">Pelanggan</span>
+            <span className="text-right font-bold">{transaction.customer_name}</span>
+          </div>
+        )}
       </div>
 
       <div className="border-t border-dashed" />
@@ -67,14 +73,6 @@ export function Receipt({ transaction }: { transaction: TransactionListItem }) {
           {transaction.items.map((item) => (
             <div key={item.id} className="flex flex-col gap-0.5 text-xs">
               <div className="flex items-center gap-2">
-                {/* {item.menu_image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage URL
-                  <img
-                    src={item.menu_image_url}
-                    alt=""
-                    className="h-8 w-8 shrink-0 rounded object-cover print:hidden"
-                  />
-                ) : null} */}
                 <span className="font-medium">{item.menu_name}</span>
               </div>
               <div className="flex justify-between pl-1 text-neutral-500">

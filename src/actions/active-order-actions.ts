@@ -33,6 +33,8 @@ export interface CreateActiveOrderResult extends ActionResult {
  */
 export async function createActiveOrderAction(input: {
   notes: string;
+  customer_name?: string;
+  customer_phone: string;
   items: { menu_id: string; quantity: number }[];
 }): Promise<CreateActiveOrderResult> {
   await requireUser();
@@ -54,7 +56,7 @@ export async function createActiveOrderAction(input: {
     };
   }
 
-  revalidatePath(ACTIVE_ORDERS_PATH);
+  revalidatePath(TRANSACTIONS_PATH);
   return { success: true, message: "Pesanan berhasil disimpan.", activeOrderId };
 }
 

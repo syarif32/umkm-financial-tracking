@@ -32,6 +32,7 @@ export function ActiveOrderTable({ orders }: { orders: ActiveOrderListItem[] }) 
           <TableRow>
             <TableHead>No. Pesanan</TableHead>
             <TableHead>Dibuat</TableHead>
+            <TableHead>Pelanggan</TableHead>
             <TableHead>Kasir</TableHead>
             <TableHead className="text-right">Item</TableHead>
             <TableHead className="text-right">Total</TableHead>
@@ -42,7 +43,7 @@ export function ActiveOrderTable({ orders }: { orders: ActiveOrderListItem[] }) 
         <TableBody>
           {orders.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground">
+              <TableCell colSpan={8} className="text-center text-muted-foreground">
                 Tidak ada pesanan.
               </TableCell>
             </TableRow>
@@ -52,6 +53,9 @@ export function ActiveOrderTable({ orders }: { orders: ActiveOrderListItem[] }) 
               <TableCell className="font-medium">{order.order_number}</TableCell>
               <TableCell className="whitespace-nowrap text-sm">
                 {formatDateTime(order.created_at)}
+              </TableCell>
+              <TableCell className="font-medium text-blue-600">
+                {order.customer_name || "-"}
               </TableCell>
               <TableCell>{order.creator_name}</TableCell>
               <TableCell className="text-right">{order.item_count}</TableCell>

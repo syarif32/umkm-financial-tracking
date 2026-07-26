@@ -12,6 +12,8 @@ export const activeOrderItemSchema = z.object({
 
 export const createActiveOrderSchema = z.object({
   notes: z.string().trim().max(500, "Catatan maksimal 500 karakter.").optional().default(""),
+  customer_name: z.string().trim().max(50, "Nama pelanggan maksimal 50 karakter.").optional().default(""), // <-- TAMBAHAN
+  customer_phone: customerPhoneSchema, 
   items: z.array(activeOrderItemSchema).max(50, "Maksimal 50 item per pesanan.").default([]),
 });
 

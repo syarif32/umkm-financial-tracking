@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClipboardList, LayoutDashboard, ListPlus, Package, Users } from "lucide-react";
+import { LayoutDashboard, ListPlus, Package, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/database";
 
@@ -26,12 +26,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: ListPlus,
     roles: ["OWNER", "KARYAWAN"],
   },
-  {
-    href: "/dashboard/active-orders",
-    label: "Tagihan Aktif",
-    icon: ClipboardList,
-    roles: ["OWNER", "KARYAWAN"],
-  },
+  // Menu "Tagihan Aktif" telah digabung ke dalam "Transaksi"
   {
     href: "/dashboard/master-data",
     label: "Data Master",
@@ -83,33 +78,31 @@ export function Sidebar({ role }: { role: UserRole }) {
 
       {/* --- MOBILE BOTTOM NAVIGATION --- */}
       <nav 
-        className="fixed bottom-0 left-0 right-0 z-[999] flex h-16 w-full items-center justify-around border-t bg-white pt-1 shadow-[0_-4px_15px_rgba(0,0,0,0.05)] md:hidden"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        className="fixed bottom-0 left-0 right-0 z-[999] flex h-16 w-full items-center justify-around border-t bg-white pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.08)] md:hidden"
       >
         {items.map((item) => {
-          // Logika active state: exact match untuk dashboard, startsWith untuk sisanya
           const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
           
           return (
             <Link
               key={item.href}
               href={item.href}
-              className="flex h-full flex-1 flex-col items-center justify-center gap-1"
+              className="flex h-full flex-1 flex-col items-center justify-center gap-1 mt-1"
             >
               <div
                 className={cn(
-                  "flex items-center justify-center rounded-full p-1.5 transition-colors",
-                  isActive ? "bg-blue-50" : "bg-transparent"
+                  "flex items-center justify-center rounded-full px-4 py-1 transition-all duration-200",
+                  isActive ? "bg-blue-100/80" : "bg-transparent"
                 )}
               >
                 <item.icon
-                  className={cn("h-5 w-5", isActive ? "text-blue-700" : "text-gray-400")}
+                  className={cn("h-5 w-5 transition-colors", isActive ? "text-blue-700" : "text-gray-400")}
                   strokeWidth={isActive ? 2.5 : 2}
                 />
               </div>
               <span
                 className={cn(
-                  "text-[10px]",
+                  "text-[10px] transition-colors",
                   isActive ? "text-blue-700 font-bold" : "text-gray-500 font-medium"
                 )}
               >

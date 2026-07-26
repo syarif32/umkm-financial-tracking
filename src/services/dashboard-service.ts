@@ -64,13 +64,12 @@ export const dashboardService = {
     const trendToExclusiveIso = todayToExclusiveIso;
 
     const [
-      rangeIncome,
-      rangeExpense,
-      todayIncomeTx,
-      monthIncomeTx,
-      trendIncomeTx,
-      allTimeIncome,
-      allTimeExpense,
+     { data: rangeIncome },    // <-- Ekstrak .data dari hasil list()
+      { data: rangeExpense },   // <-- Ekstrak .data
+      { data: todayIncomeTx },  // <-- Ekstrak .data
+      { data: monthIncomeTx },  // <-- Ekstrak .data
+      { data: trendIncomeTx },  // <-- Ekstrak .data
+      balancesData, // Replaces allTimeIncome and allTimeExpense
       menus,
       menuCategories,
       paymentMethods,
@@ -106,8 +105,7 @@ export const dashboardService = {
         fromDate: trendFromIso,
         toDateExclusive: trendToExclusiveIso,
       }),
-      transactionRepository.list(supabase, { type: "INCOME", status: "COMPLETED" }),
-      transactionRepository.list(supabase, { type: "EXPENSE", status: "COMPLETED" }),
+      transactionRepository.getPaymentMethodBalances(supabase), // RPC Call
       menuService.list(supabase),
       menuCategoryService.list(supabase),
       paymentMethodService.list(supabase),
@@ -186,32 +184,24 @@ export const dashboardService = {
       };
     });
 
-    // --- Payment method balances: all-time completed income minus all-time
-    // completed expense, per method. This is a fund-balance figure, so it is
-    // deliberately NOT scoped to the selected date range. ---
-    const incomeByMethod = new Map<string, number>();
-    for (const t of allTimeIncome) {
-      incomeByMethod.set(
-        t.payment_method_id,
-        (incomeByMethod.get(t.payment_method_id) ?? 0) + t.total_amount
-      );
+    // --- Payment method balances: Diambil dari agregasi database (RPC) ---
+    // Buat Map untuk mempercepat pencarian data agregasi per metode
+    const balanceMap = new Map<string, { income: number; expense: number }>();
+    for (const b of balancesData) {
+      balanceMap.set(b.payment_method_id, {
+        income: Number(b.total_income),
+        expense: Number(b.total_expense),
+      });
     }
-    const expenseByMethod = new Map<string, number>();
-    for (const t of allTimeExpense) {
-      expenseByMethod.set(
-        t.payment_method_id,
-        (expenseByMethod.get(t.payment_method_id) ?? 0) + t.total_amount
-      );
-    }
+
     const paymentMethodBalances: PaymentMethodBalance[] = paymentMethods.map((pm) => {
-      const income = incomeByMethod.get(pm.id) ?? 0;
-      const expense = expenseByMethod.get(pm.id) ?? 0;
+      const b = balanceMap.get(pm.id) ?? { income: 0, expense: 0 };
       return {
         payment_method_id: pm.id,
         payment_method_name: pm.name,
-        total_income: income,
-        total_expense: expense,
-        balance: income - expense,
+        total_income: b.income,
+        total_expense: b.expense,
+        balance: b.income - b.expense,
       };
     });
 

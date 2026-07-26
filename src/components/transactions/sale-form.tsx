@@ -11,13 +11,15 @@ import {
   Plus, 
   ShoppingBag, 
   User, 
-  Phone 
+  Phone,
+  ClipboardList
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createSaleTransactionAction } from "@/actions/transaction-actions";
+import { createActiveOrderAction } from "@/actions/active-order-actions"; // <-- TAMBAHAN IMPORT
 import { formatRupiah, cn } from "@/lib/utils";
 import type { Menu, PaymentMethod } from "@/types/database";
 
@@ -34,7 +36,6 @@ export function SaleForm({
   menus: Menu[];
   paymentMethods: PaymentMethod[];
 }) {
-  // State untuk navigasi antar layar POS
   const [step, setStep] = useState<"menu" | "checkout">("menu");
   
   const [rows, setRows] = useState<ItemRow[]>([]);
@@ -54,7 +55,6 @@ export function SaleForm({
 
   const totalItems = rows.reduce((sum, row) => sum + row.quantity, 0);
 
-  // Fungsi khusus untuk Mode Visual Grid
   function handleAddMenu(menuId: string) {
     const existingRow = rows.find((r) => r.menuId === menuId);
     if (existingRow) {
@@ -99,11 +99,11 @@ export function SaleForm({
     setStep("menu");
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (!paymentMethodId) {
-      toast.error("Metode pembayaran wajib dipilih.");
+  // --- LOGIKA BARU UNTUK 2 TOMBOL ---
+  function handleProcess(type: "SALE" | "ACTIVE_ORDER") {
+    // Validasi Pembayaran hanya untuk transaksi LUNAS
+    if (type === "SALE" && !paymentMethodId) {
+      toast.error("Metode pembayaran wajib dipilih untuk transaksi lunas.");
       return;
     }
 
@@ -117,23 +117,35 @@ export function SaleForm({
     }
 
     startTransition(async () => {
-      // Pastikan createSaleTransactionAction di actions Anda 
-      // sudah siap menerima field customer_name
-      const result = await createSaleTransactionAction({
-        payment_method_id: paymentMethodId,
-        notes,
-        customer_name: customerName, 
-        customer_phone: customerPhone,
-        items,
-      });
+      if (type === "SALE") {
+        const result = await createSaleTransactionAction({
+          payment_method_id: paymentMethodId,
+          notes,
+          customer_name: customerName, 
+          customer_phone: customerPhone,
+          items,
+        });
 
-      if (result.success) {
-        toast.success(result.message);
-        // Jika Anda memiliki trigger untuk menampilkan Struk atau WA,
-        // Anda bisa menyisipkan logikanya di sini sebelum reset.
-        resetForm();
+        if (result.success) {
+          toast.success("Transaksi berhasil disimpan sebagai LUNAS.");
+          resetForm();
+        } else {
+          toast.error(result.message);
+        }
       } else {
-        toast.error(result.message);
+        // Tagihan Aktif (Belum Lunas)
+        const result = await createActiveOrderAction({
+          notes,
+          customer_name: customerName,
+          items,
+        });
+
+        if (result.success) {
+          toast.success("Pesanan disimpan ke tagihan BELUM LUNAS.");
+          resetForm();
+        } else {
+          toast.error(result.message);
+        }
       }
     });
   }
@@ -143,13 +155,12 @@ export function SaleForm({
   // ==========================================
   if (step === "menu") {
     return (
-      <div className="flex flex-col h-full bg-gray-50/50 rounded-2xl border shadow-sm overflow-hidden relative">
+      <div className="flex flex-col h-[70vh] min-h-[500px] bg-gray-50/50 rounded-2xl border shadow-sm overflow-hidden relative">
         <div className="p-4 border-b bg-white">
           <h2 className="text-lg font-bold text-gray-800">Kasir</h2>
           <p className="text-xs text-muted-foreground mt-1">Ketuk menu untuk menambahkan ke keranjang.</p>
         </div>
 
-        {/* Grid Menu yang ramah jempol */}
         <div className="p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 overflow-y-auto pb-24">
           {menus.map((menu) => {
             const qty = getMenuQuantity(menu.id);
@@ -168,7 +179,6 @@ export function SaleForm({
                     : "border-gray-100 hover:border-blue-200"
                 )}
               >
-                {/* Area Gambar */}
                 <div className="w-full h-24 bg-gray-100 flex items-center justify-center shrink-0">
                   {menu.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -178,7 +188,6 @@ export function SaleForm({
                   )}
                 </div>
 
-                {/* Info Menu */}
                 <div className="p-2.5 flex flex-col flex-1">
                   <p className="font-semibold text-[13px] leading-tight text-gray-800 line-clamp-2">
                     {menu.name}
@@ -188,7 +197,6 @@ export function SaleForm({
                   </p>
                 </div>
 
-                {/* Kontrol Qty Tampil Melayang jika Dipilih */}
                 {isSelected && (
                   <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t p-1.5 flex items-center justify-between">
                     <button
@@ -213,7 +221,6 @@ export function SaleForm({
           })}
         </div>
 
-        {/* Sticky Checkout Footer (Melayang di bawah) */}
         {totalItems > 0 && (
           <div className="absolute bottom-0 left-0 right-0 bg-white border-t p-4 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.1)] flex items-center justify-between z-10">
             <div className="flex flex-col">
@@ -226,7 +233,7 @@ export function SaleForm({
               onClick={() => setStep("checkout")}
             >
               <ShoppingBag className="w-5 h-5 mr-2" />
-              Bayar
+              Proses Tagihan
             </Button>
           </div>
         )}
@@ -244,13 +251,12 @@ export function SaleForm({
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div>
-          <h2 className="text-lg font-bold text-gray-800">Selesaikan Pembayaran</h2>
-          <p className="text-xs text-muted-foreground">Lengkapi data pelanggan dan metode bayar.</p>
+          <h2 className="text-lg font-bold text-gray-800">Ringkasan Pesanan</h2>
+          <p className="text-xs text-muted-foreground">Lengkapi data untuk menyimpan atau melunasi.</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col p-4 gap-6">
-        
+      <div className="flex flex-col p-4 gap-6">
         {/* Ringkasan Belanja */}
         <div className="bg-gray-50 rounded-xl p-4 border">
           <div className="flex flex-col gap-2 mb-3 max-h-40 overflow-y-auto pr-2 no-scrollbar">
@@ -276,7 +282,7 @@ export function SaleForm({
           <div className="flex flex-col gap-2">
             <Label htmlFor="customer-name" className="text-sm font-semibold flex items-center gap-2">
               <User className="w-4 h-4 text-gray-400" />
-              Nama Pelanggan (Opsional)
+              Nama Pelanggan (Wajib untuk Tagihan Belum Lunas)
             </Label>
             <Input
               id="customer-name"
@@ -305,15 +311,14 @@ export function SaleForm({
               className="h-12 rounded-xl"
               maxLength={20}
             />
-            <p className="text-[11px] text-muted-foreground leading-tight">
-              Isi jika ingin membagikan struk digital via WhatsApp setelah transaksi.
-            </p>
           </div>
         </div>
 
-        {/* Metode Pembayaran (Visual Buttons) */}
+        {/* Metode Pembayaran */}
         <div className="flex flex-col gap-3">
-          <Label className="text-sm font-semibold text-gray-800">Metode Pembayaran</Label>
+          <Label className="text-sm font-semibold text-gray-800">
+            Metode Pembayaran <span className="text-muted-foreground font-normal">(Abaikan jika disimpan ke Belum Lunas)</span>
+          </Label>
           <div className="grid grid-cols-2 gap-3">
             {paymentMethods.map((pm) => (
               <div
@@ -322,15 +327,15 @@ export function SaleForm({
                 className={cn(
                   "flex items-center gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all select-none",
                   paymentMethodId === pm.id
-                    ? "border-blue-500 bg-blue-50 text-blue-700"
-                    : "border-gray-200 hover:border-blue-200 text-gray-700"
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                    : "border-gray-200 hover:border-emerald-200 text-gray-700"
                 )}
               >
                 <div className={cn(
                   "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0",
-                  paymentMethodId === pm.id ? "border-blue-500" : "border-gray-300"
+                  paymentMethodId === pm.id ? "border-emerald-500" : "border-gray-300"
                 )}>
-                  {paymentMethodId === pm.id && <CheckCircle2 className="w-4 h-4 fill-blue-500 text-white" />}
+                  {paymentMethodId === pm.id && <CheckCircle2 className="w-4 h-4 fill-emerald-500 text-white" />}
                 </div>
                 <span className="font-semibold text-sm">{pm.name}</span>
               </div>
@@ -340,7 +345,7 @@ export function SaleForm({
 
         {/* Catatan */}
         <div className="flex flex-col gap-2">
-          <Label htmlFor="sale-notes" className="text-sm font-semibold text-gray-800">Catatan Pesanan (Opsional)</Label>
+          <Label htmlFor="sale-notes" className="text-sm font-semibold text-gray-800">Catatan Tambahan (Opsional)</Label>
           <Textarea
             id="sale-notes"
             placeholder="Contoh: Pedas, dibungkus..."
@@ -352,20 +357,40 @@ export function SaleForm({
           />
         </div>
 
-        <Button 
-          type="submit" 
-          disabled={isPending || !paymentMethodId} 
-          size="lg"
-          className="w-full rounded-xl text-md h-14 bg-emerald-600 hover:bg-emerald-700 font-bold shadow-lg mt-2"
-        >
-          {isPending ? (
-            <Loader2 className="animate-spin mr-2 w-5 h-5" />
-          ) : (
-            <CheckCircle2 className="mr-2 w-5 h-5" />
-          )}
-          {isPending ? "Memproses..." : "Simpan Transaksi"}
-        </Button>
-      </form>
+        {/* DUA TOMBOL AKSI */}
+        <div className="flex flex-col sm:flex-row gap-3 mt-2">
+          <Button 
+            type="button" 
+            disabled={isPending} 
+            size="lg"
+            variant="outline"
+            className="flex-1 rounded-xl text-md h-14 border-blue-600 text-blue-700 hover:bg-blue-50 hover:text-blue-800 font-bold"
+            onClick={() => handleProcess("ACTIVE_ORDER")}
+          >
+            {isPending ? (
+              <Loader2 className="animate-spin mr-2 w-5 h-5" />
+            ) : (
+              <ClipboardList className="mr-2 w-5 h-5" />
+            )}
+            Simpan ke Belum Lunas
+          </Button>
+
+          <Button 
+            type="button" 
+            disabled={isPending || !paymentMethodId} 
+            size="lg"
+            className="flex-1 rounded-xl text-md h-14 bg-emerald-600 hover:bg-emerald-700 font-bold shadow-md"
+            onClick={() => handleProcess("SALE")}
+          >
+            {isPending ? (
+              <Loader2 className="animate-spin mr-2 w-5 h-5" />
+            ) : (
+              <CheckCircle2 className="mr-2 w-5 h-5" />
+            )}
+            Bayar Sekarang (Lunas)
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

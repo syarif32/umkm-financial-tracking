@@ -33,7 +33,50 @@ function buildWhatsAppMessage(transaction: TransactionListItem): string {
 export function ReceiptActions({ transaction }: { transaction: TransactionListItem }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isWorking, setIsWorking] = useState(false);
+  const handleGetReceiptBlob = async () => {
+  try {
+    // 1. Siapkan data struk sesuai format Canvas Anda
+    const canvasData = {
+      businessName: BUSINESS_INFO.name,
+      businessAddress: BUSINESS_INFO.address || "",
+      businessPhone: BUSINESS_INFO.phone || "",
+      title: transaction.type === "INCOME" ? "STRUK PENJUALAN" : "STRUK PENGELUARAN",
+      transactionId: transaction.id.slice(0, 8).toUpperCase(),
+      dateTimeLabel: new Date(transaction.transaction_date).toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short" }),
+      cashierName: transaction.creator_name,
+      customerNameLabel: transaction.customer_name || undefined, // Mengambil nama pelanggan yang baru dibuat!
+      type: transaction.type,
+      items: transaction.items.map(item => ({
+        name: item.menu_name,
+        quantityLabel: String(item.quantity),
+        priceLabel: formatRupiah(item.price_at_transaction),
+        subtotalLabel: formatRupiah(item.subtotal)
+      })),
+      expenseCategoryLabel: transaction.expense_category_name || undefined,
+      notes: transaction.notes || undefined,
+      paymentMethodName: transaction.payment_method_name,
+      totalLabel: formatRupiah(transaction.total_amount),
+      customerPhoneLabel: transaction.customer_phone || undefined,
+      statusLabel: transaction.status === "VOIDED" ? "Dibatalkan" : "Selesai",
+      isVoided: transaction.status === "VOIDED",
+      voidReason: transaction.void_reason || undefined,
+      thankYouMessage: "Terima kasih sudah berbelanja 🙏"
+    };
 
+    // 2. Buat Canvas di memori belakang layar (tidak perlu tampil di layar)
+    const canvas = document.createElement("canvas");
+    
+    // 3. Gambar struk ke Canvas menggunakan fungsi yang sudah Anda miliki
+    drawReceipt(canvas, canvasData);
+    
+    // 4. Ubah Canvas jadi bentuk Blob PNG
+    const blob = await canvasToPngBlob(canvas);
+    return blob;
+  } catch (error) {
+    console.error("Canvas Render Error:", error);
+    return null;
+  }
+};
   function renderToHiddenCanvas(): HTMLCanvasElement {
     const canvas = canvasRef.current ?? document.createElement("canvas");
     canvasRef.current = canvas;
@@ -153,6 +196,7 @@ export function ReceiptActions({ transaction }: { transaction: TransactionListIt
         <WhatsAppShareDialog
           defaultPhone={transaction.customer_phone ?? ""}
           message={buildWhatsAppMessage(transaction)}
+          getReceiptBlob={handleGetReceiptBlob}
         />
       )}
     </div>

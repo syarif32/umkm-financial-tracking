@@ -50,17 +50,29 @@ export type VoidTransactionInput = {
   id: string;
   reason: string;
 };
+// Tambahkan di bagian atas atau bawah file types/transaction.ts
 
 export type TransactionHistoryFilter = {
   type?: TransactionType;
   status?: TransactionStatus;
   paymentMethodId?: string;
   expenseCategoryId?: string;
-  /** Inclusive, 'YYYY-MM-DD'. */
   fromDate?: string;
-  /** Inclusive, 'YYYY-MM-DD'. */
   toDate?: string;
-  /** Matched client-side against transaction id (substring) and customer_phone. */
   search?: string;
   sortAscending?: boolean;
+  // --- Tambahan untuk Pagination ---
+  page?: number;
+  limit?: number;
 };
+
+// --- Tambahan Tipe Paginated ---
+export interface PaginatedResult<T> {
+  data: T[];
+  metadata: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}

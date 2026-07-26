@@ -59,6 +59,8 @@ export async function createExpenseTransactionAction(input: {
   payment_method_id: string;
   expense_category_id: string;
   amount: number;
+  customer_phone: string;
+  customer_name: string;
   notes: string;
   transaction_date?: string;
 }): Promise<ActionResult> {

@@ -3,11 +3,13 @@ import type { ActiveOrder, ActiveOrderItem, ActiveOrderStatus } from "@/types/da
 export type ActiveOrderListItem = ActiveOrder & {
   creator_name: string;
   item_count: number;
+  customer_name?: string | null;
 };
 
 export type ActiveOrderDetail = ActiveOrder & {
   creator_name: string;
   items: ActiveOrderItem[];
+  customer_name?: string | null;
 };
 
 export type ActiveOrderItemInput = {

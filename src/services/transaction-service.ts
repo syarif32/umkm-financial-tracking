@@ -6,6 +6,7 @@ import type {
   TransactionHistoryFilter,
   TransactionListItem,
   VoidTransactionInput,
+  PaginatedResult,
 } from "@/types/transaction";
 import { transactionRepository } from "@/repositories/transaction-repository";
 import { menuService } from "@/services/menu-service";
@@ -33,11 +34,26 @@ function buildMap<T extends Record<string, unknown>, K extends keyof T>(
  * getTransactionDetail, fetched once and reused so the two entry points
  * don't duplicate the same joins.
  */
-async function loadDisplayLookups(supabase: TypedSupabaseClient) {
+// Tambahkan interface untuk menerima data dari luar
+export interface PreloadedMasterData {
+  menus?: Awaited<ReturnType<typeof menuService.list>>;
+  paymentMethods?: Awaited<ReturnType<typeof paymentMethodService.list>>;
+  categories?: Awaited<ReturnType<typeof expenseCategoryService.list>>;
+}
+
+/**
+ * Master-data lookups shared by both listTransactionHistory and
+ * getTransactionDetail. Menerima preloaded data untuk mencegah double fetch.
+ */
+async function loadDisplayLookups(
+  supabase: TypedSupabaseClient,
+  preloadedData?: PreloadedMasterData
+) {
+  // Hanya fetch dari DB jika preloadedData tidak menyediakan datanya
   const [menus, paymentMethods, categories, profiles] = await Promise.all([
-    menuService.list(supabase),
-    paymentMethodService.list(supabase),
-    expenseCategoryService.list(supabase),
+    preloadedData?.menus ? Promise.resolve(preloadedData.menus) : menuService.list(supabase),
+    preloadedData?.paymentMethods ? Promise.resolve(preloadedData.paymentMethods) : paymentMethodService.list(supabase),
+    preloadedData?.categories ? Promise.resolve(preloadedData.categories) : expenseCategoryService.list(supabase),
     supabase.from("profiles").select("id, full_name"),
   ]);
 
@@ -102,7 +118,7 @@ export const transactionService = {
    */
   async createSaleTransaction(
     supabase: TypedSupabaseClient,
-    input: CreateSaleTransactionInput
+    input: CreateSaleTransactionInput & { customer_name?: string } 
   ): Promise<Transaction> {
     const normalizedPhone = input.customer_phone
       ? normalizeIndonesianPhone(input.customer_phone)
@@ -112,6 +128,7 @@ export const transactionService = {
       payment_method_id: input.payment_method_id,
       notes: input.notes.trim() || null,
       items: input.items,
+      customer_name: input.customer_name?.trim() || null, 
       customer_phone: normalizedPhone,
     });
   },
@@ -182,9 +199,14 @@ export const transactionService = {
   async listTransactionHistory(
     supabase: TypedSupabaseClient,
     currentUser: { id: string; isOwner: boolean },
-    filter: TransactionHistoryFilter = {}
-  ): Promise<TransactionListItem[]> {
-    const transactions = await transactionRepository.list(supabase, {
+    filter: TransactionHistoryFilter = {},
+    preloadedData?: PreloadedMasterData
+  ): Promise<PaginatedResult<TransactionListItem>> {
+    const page = filter.page || 1;
+    const limit = filter.limit || 20; // Default 20 baris per halaman
+
+    // Ambil data dan total count dari repository
+    const { data: transactions, count } = await transactionRepository.list(supabase, {
       onlyUserId: currentUser.isOwner ? undefined : currentUser.id,
       type: filter.type,
       status: filter.status,
@@ -193,27 +215,32 @@ export const transactionService = {
       fromDate: filter.fromDate ? startOfUtcDayIso(filter.fromDate) : undefined,
       toDateExclusive: filter.toDate ? startOfUtcDayIso(addDaysToDateOnly(filter.toDate, 1)) : undefined,
       ascending: filter.sortAscending,
+      page,
+      limit,
+      search: filter.search, // <-- 1. TERUSKAN PARAMETER SEARCH KE REPOSITORY
     });
 
-    const searchLower = filter.search?.trim().toLowerCase();
-    const searched = searchLower
-      ? transactions.filter(
-          (t) =>
-            t.id.toLowerCase().includes(searchLower) ||
-            (t.customer_phone ?? "").toLowerCase().includes(searchLower)
-        )
-      : transactions;
+    // 2. BLOK PENCARIAN JAVASCRIPT DIHAPUS DARI SINI
 
-    const incomeTransactionIds = searched.filter((t) => t.type === "INCOME").map((t) => t.id);
+    // 3. Gunakan 'transactions' langsung, bukan 'searched'
+    const incomeTransactionIds = transactions.filter((t) => t.type === "INCOME").map((t) => t.id);
 
     const [items, lookups] = await Promise.all([
       transactionRepository.listItemsByTransactionIds(supabase, incomeTransactionIds),
-      loadDisplayLookups(supabase),
+      loadDisplayLookups(supabase, preloadedData),
     ]);
 
-    return searched.map((t) => mapToListItem(t, items, lookups));
+    // Kembalikan beserta metadata
+    return {
+      data: transactions.map((t) => mapToListItem(t, items, lookups)), // <-- Gunakan 'transactions'
+      metadata: {
+        total: count,
+        page,
+        limit,
+        totalPages: Math.ceil(count / limit),
+      },
+    };
   },
-
   /**
    * Fetches a single transaction for the detail/receipt view. Returns null
    * both when the transaction doesn't exist AND when RLS blocks it (a
@@ -223,7 +250,8 @@ export const transactionService = {
    */
   async getTransactionDetail(
     supabase: TypedSupabaseClient,
-    id: string
+    id: string,
+    preloadedData?: PreloadedMasterData
   ): Promise<TransactionListItem | null> {
     const transaction = await transactionRepository.getById(supabase, id);
     if (!transaction) return null;
@@ -232,7 +260,7 @@ export const transactionService = {
       transaction.type === "INCOME"
         ? transactionRepository.listItemsByTransactionIds(supabase, [transaction.id])
         : Promise.resolve([]),
-      loadDisplayLookups(supabase),
+      loadDisplayLookups(supabase, preloadedData),
     ]);
 
     return mapToListItem(transaction, items, lookups);

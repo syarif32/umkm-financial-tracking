@@ -15,8 +15,8 @@ export default async function DashboardLayout({
     <div className="flex h-[100dvh] w-full overflow-hidden bg-zinc-50/50 relative">
       <Sidebar role={profile.role} />
       
-      {/* KUNCI 2: pb-20 di mode mobile memberi ruang 80px di bawah agar konten tidak tertutup nav */}
-      <div className="flex min-w-0 flex-1 flex-col h-full pb-20 md:pb-0 relative">
+      {/* KUNCI 2: pb-24 di mode mobile memberi ruang cukup di bawah agar konten (dan form actions) tidak tertutup nav */}
+      <div className="flex min-w-0 flex-1 flex-col h-full pb-24 md:pb-0 relative">
         <Header name={profile.full_name} role={profile.role} />
         
         {/* Hanya area ini yang bisa di-scroll, badan website akan tetap diam */}

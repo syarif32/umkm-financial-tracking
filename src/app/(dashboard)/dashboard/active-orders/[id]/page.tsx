@@ -52,13 +52,14 @@ export default async function ActiveOrderDetailPage({
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="icon">
-          <Link href="/dashboard/active-orders">
+          {/* PERBAIKAN: Link kembali diubah ke halaman transaksi */}
+          <Link href="/dashboard/transactions">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
         <div>
           <h1 className="text-xl font-semibold">{order.order_number}</h1>
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             <Badge
               variant={
                 order.status === "OPEN"
@@ -73,6 +74,15 @@ export default async function ActiveOrderDetailPage({
             <span className="text-xs text-muted-foreground">
               Dibuat {formatDateTime(order.created_at)} oleh {order.creator_name}
             </span>
+            {/* TAMBAHAN: Menampilkan Nama Pelanggan di detail pesanan */}
+            {order.customer_name && (
+              <>
+                <span className="text-xs text-muted-foreground">•</span>
+                <span className="text-xs font-semibold text-blue-600">
+                  Pelanggan: {order.customer_name}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </div>

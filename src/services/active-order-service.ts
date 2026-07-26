@@ -60,6 +60,7 @@ export const activeOrderService = {
   ): Promise<ActiveOrder> {
     return activeOrderRepository.createViaRpc(supabase, {
       notes: input.notes.trim() || null,
+      customer_name: (input as any).customer_name?.trim() || null, 
       items: input.items,
     });
   },
@@ -70,15 +71,27 @@ export const activeOrderService = {
   ): Promise<ActiveOrderListItem[]> {
     const orders = await activeOrderRepository.list(supabase, { status: filter.status });
 
-    const [creatorNames, itemCounts] = await Promise.all([
+    if (orders.length === 0) return [];
+
+    // Mencegah N+1 Query: Tarik relasi dalam batch
+    const [creatorNames, allItems] = await Promise.all([
       loadCreatorNames(
         supabase,
         orders.map((o) => o.created_by)
       ),
-      Promise.all(
-        orders.map((o) => activeOrderRepository.listItemsByOrderId(supabase, o.id))
-      ).then((allItems) => new Map(orders.map((o, i) => [o.id, allItems[i].length]))),
+      activeOrderRepository.listItemsByOrderIds(
+        supabase,
+        orders.map((o) => o.id)
+      )
     ]);
+
+    const itemCounts = new Map<string, number>();
+    for (const item of allItems) {
+      itemCounts.set(
+        item.active_order_id,
+        (itemCounts.get(item.active_order_id) || 0) + 1
+      );
+    }
 
     return orders.map((o) => ({
       ...o,

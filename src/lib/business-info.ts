@@ -5,7 +5,7 @@
  * real settings table/UI in a later step if that becomes needed.
  */
 export const BUSINESS_INFO = {
-  name: "UMKM Kasir",
-  address: "", // e.g. "Jl. Contoh No. 1, Semarang"
-  phone: "", // e.g. "0812xxxxxxx"
+  name: "Mie Kopyok Pak Zain",
+  address: "Jl. Badak V No.31, Pandean Lamper, Kec. Gayamsari, Kota Semarang, Jawa Tengah 50249",
+  phone: "0895-2457-0682"
 };

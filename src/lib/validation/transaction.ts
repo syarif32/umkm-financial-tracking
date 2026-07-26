@@ -23,6 +23,7 @@ export const customerPhoneSchema = z
 export const createSaleTransactionSchema = z.object({
   payment_method_id: z.string().uuid("Metode pembayaran wajib dipilih."),
   notes: z.string().trim().max(500, "Catatan maksimal 500 karakter.").optional().default(""),
+  customer_name: z.string().trim().max(50, "Nama pelanggan maksimal 50 karakter.").optional().default(""),
   customer_phone: customerPhoneSchema,
   items: z
     .array(saleItemSchema)

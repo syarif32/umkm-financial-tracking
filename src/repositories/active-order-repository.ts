@@ -108,6 +108,22 @@ export const activeOrderRepository = {
     if (error) throw new Error(error.message);
     return data ?? [];
   },
+  // Tambahkan fungsi ini di bawah listItemsByOrderId
+  async listItemsByOrderIds(
+    supabase: TypedSupabaseClient,
+    activeOrderIds: string[]
+  ): Promise<ActiveOrderItem[]> {
+    if (activeOrderIds.length === 0) return [];
+
+    const { data, error } = await supabase
+      .from("active_order_items")
+      .select("*")
+      .in("active_order_id", activeOrderIds)
+      .order("created_at", { ascending: true });
+      
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  },
 
   async insertItem(
     supabase: TypedSupabaseClient,

@@ -11,6 +11,7 @@ export interface CreateSaleViaRpcInput {
   payment_method_id: string;
   notes: string | null;
   items: { menu_id: string; quantity: number }[];
+  customer_name: string | null;  
   customer_phone: string | null;
 }
 
@@ -24,34 +25,20 @@ export interface CreateExpenseRow {
 }
 
 export interface ListTransactionsOptions {
-  /** When set, restricts results to this user's own transactions (Karyawan scope). */
   onlyUserId?: string;
-  /** Filter by transaction type (INCOME/EXPENSE). */
   type?: Transaction["type"];
-  /** Filter by status. Dashboard aggregation always passes 'COMPLETED'. */
   status?: Transaction["status"];
-  /** Inclusive lower bound on transaction_date (ISO string). */
   fromDate?: string;
-  /** Exclusive upper bound on transaction_date (ISO string). */
   toDateExclusive?: string;
   paymentMethodId?: string;
   expenseCategoryId?: string;
-  /** Sort by transaction_date. Defaults to newest-first (false). */
   ascending?: boolean;
+  page?: number;
+  limit?: number;
+  search?: string;
 }
 
-/**
- * Pure data-access layer for `transactions` / `transaction_items`. No
- * authorization or business rules live here — callers (the service layer)
- * are responsible for deciding what's allowed; this layer only talks to
- * Supabase and trusts RLS as the final backstop.
- */
 export const transactionRepository = {
-  /**
-   * Creates an INCOME transaction + its line items atomically via the
-   * `create_sale_transaction` Postgres function, which snapshots each
-   * item's price server-side inside the database itself.
-   */
   async createSaleViaRpc(
     supabase: TypedSupabaseClient,
     input: CreateSaleViaRpcInput
@@ -60,6 +47,7 @@ export const transactionRepository = {
       p_payment_method_id: input.payment_method_id,
       p_notes: input.notes,
       p_items: input.items,
+      p_customer_name: input.customer_name,  
       p_customer_phone: input.customer_phone,
     });
 
@@ -94,37 +82,40 @@ export const transactionRepository = {
   async list(
     supabase: TypedSupabaseClient,
     options: ListTransactionsOptions = {}
-  ): Promise<Transaction[]> {
+  ): Promise<{ data: Transaction[]; count: number }> {
     let query = supabase
       .from("transactions")
-      .select("*")
+      .select("*", { count: "exact" }) 
       .order("transaction_date", { ascending: options.ascending ?? false });
 
-    if (options.onlyUserId) {
-      query = query.eq("user_id", options.onlyUserId);
-    }
-    if (options.type) {
-      query = query.eq("type", options.type);
-    }
-    if (options.status) {
-      query = query.eq("status", options.status);
-    }
-    if (options.fromDate) {
-      query = query.gte("transaction_date", options.fromDate);
-    }
-    if (options.toDateExclusive) {
-      query = query.lt("transaction_date", options.toDateExclusive);
-    }
-    if (options.paymentMethodId) {
-      query = query.eq("payment_method_id", options.paymentMethodId);
-    }
-    if (options.expenseCategoryId) {
-      query = query.eq("expense_category_id", options.expenseCategoryId);
+    if (options.onlyUserId) query = query.eq("user_id", options.onlyUserId);
+    if (options.type) query = query.eq("type", options.type);
+    if (options.status) query = query.eq("status", options.status);
+    if (options.fromDate) query = query.gte("transaction_date", options.fromDate);
+    if (options.toDateExclusive) query = query.lt("transaction_date", options.toDateExclusive);
+    if (options.paymentMethodId) query = query.eq("payment_method_id", options.paymentMethodId);
+    if (options.expenseCategoryId) query = query.eq("expense_category_id", options.expenseCategoryId);
+    
+    if (options.search) {
+      const searchTerm = options.search.trim();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(searchTerm);
+
+      if (isUuid) {
+        query = query.or(`id.eq.${searchTerm},customer_phone.ilike.%${searchTerm}%,customer_name.ilike.%${searchTerm}%`);
+      } else {
+        query = query.or(`customer_phone.ilike.%${searchTerm}%,customer_name.ilike.%${searchTerm}%`);
+      }
     }
 
-    const { data, error } = await query;
+    if (options.page && options.limit) {
+      const from = (options.page - 1) * options.limit;
+      const to = from + options.limit - 1;
+      query = query.range(from, to);
+    }
+
+    const { data, error, count } = await query;
     if (error) throw new Error(error.message);
-    return data ?? [];
+    return { data: data ?? [], count: count ?? 0 };
   },
 
   async getById(supabase: TypedSupabaseClient, id: string): Promise<Transaction | null> {
@@ -171,6 +162,14 @@ export const transactionRepository = {
       .select("*")
       .in("transaction_id", transactionIds);
 
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  },
+
+  async getPaymentMethodBalances(
+    supabase: TypedSupabaseClient
+  ): Promise<{ payment_method_id: string; total_income: number; total_expense: number }[]> {
+    const { data, error } = await supabase.rpc("get_payment_method_balances" as any);
     if (error) throw new Error(error.message);
     return data ?? [];
   },
